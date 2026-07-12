@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generator Perangkat Ajar - SMK Al Hafidz Leuwiliang</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        pplg: {
+                            main: '#1e3a8a', // blue-900
+                            light: '#eff6ff',
+                            accent: '#eab308' // yellow-500
+                        },
+                        mplb: {
+                            main: '#7f1d1d', // red-900
+                            light: '#fef2f2',
+                            accent: '#eab308' // yellow-500
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Export Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/libs/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .content-editable-area {
+            min-height: 500px;
+            padding: 2rem;
+            background: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border-radius: 0.5rem;
+            outline: none;
+        }
+        .content-editable-area:focus {
+            box-shadow: 0 0 0 2px #3b82f6;
+        }
+        
+        /* Print/PDF Styles */
+        .document-preview h1 { font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem; border-bottom: 2px solid #ccc; padding-bottom: 0.5rem; }
+        .document-preview h2 { font-size: 1.25rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.75rem; color: #333; }
+        .document-preview h3 { font-size: 1.1rem; font-weight: bold; margin-top: 1rem; margin-bottom: 0.5rem; }
+        .document-preview p { margin-bottom: 0.75rem; line-height: 1.6; }
+        .document-preview ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+        .document-preview ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1rem; }
+        .document-preview table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+        .document-preview th, .document-preview td { border: 1px solid #d1d5db; padding: 0.5rem; text-align: left; }
+        .document-preview th { background-color: #f3f4f6; font-weight: 600; }
+        .document-preview .callout { background-color: #f8fafc; border-left: 4px solid #3b82f6; padding: 1rem; margin-bottom: 1rem; }
+        
+        /* LKPD specific styles within editor */
+        .lkpd-box { border: 2px dashed #94a3b8; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; min-height: 100px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const PROGRAM_KEAHLIAN = [
+            { id: 'PPLG', name: 'Pengembangan Perangkat Lunak dan Gim', theme: 'pplg' },
+            { id: 'MPLB', name: 'Manajemen Perkantoran dan Layanan Bisnis', theme: 'mplb' }
+        ];
+
+        const DIMENSI_LULUSAN = [
+            "Keimanan & Ketakwaan", "Kewargaan", "Penalaran Kritis", "Kreativitas", 
+            "Kolaborasi", "Kemandirian", "Kesehatan", "Komunikasi"
+        ];
+
+        const MODEL_PEMBELAJARAN = [
+            "Project Based Learning (PjBL)", "Problem Based Learning (PBL)", 
+            "Inkuiri", "Discovery Learning", "Teaching Factory (TeFa)"
+        ];
+
+        const SARPRAS_LIST = {
+            'PPLG': ['Lab Komputer', 'Koneksi Internet Cepat', 'Proyektor', 'Whiteboard', 'Software IDE (VS Code, dll)'],
+            'MPLB': ['Lab Komputer', 'Mesin Tik/Printer', 'Proyektor', 'Telepon Simulasi', 'Alat Kearsipan', 'Internet']
+        };
+
+        const INITIAL_STATE = {
+            guru: '',
+            prodi: 'PPLG',
+            jenisMapel: 'Kejuruan', // Default ke Kejuruan
+            kelas: 'X',
+            mapel: '',
+            semester: 'Ganjil',
+            pertemuan: '1',
+            waktu: '2 x 45 menit',
+            
+            cp: '',
+            topik: '',
+            tp: '',
+            levelHOTS: 'Campur', // Default level kognitif
+            karakteristik: 'Sebagian besar siswa memiliki gaya belajar visual dan kinestetik.',
+            sarpras: [],
+            
+            dimensi: [],
+            model: 'Project Based Learning (PjBL)',
+            isKolaborasi: false,
+            mapelMitra: '',
+            guruMitra: '',
+            tpMitra: '',
+            isuBersama: ''
+        };
+
+        const Icon = ({ name, size=24, className="" }) => {
+            useEffect(() => {
+                lucide.createIcons();
+            });
+            return <i data-lucide={name} width={size} height={size} className={className}></i>;
+        };
+
+        const Card = ({ children, className="" }) => (
+            <div className={`bg-white rounded-xl shadow-md border border-gray-100 p-6 ${className}`}>
+                {children}
+            </div>
+        );
+
+        const generateContent = (data) => {
+            const isPPLG = data.prodi === 'PPLG';
+            
+            // Penyesuaian konteks industri berdasarkan jenis mapel
+            let contextIndustri = '';
+            const mapelLower = data.mapel.toLowerCase();
+            const isSpecialUmum = mapelLower.includes('inggris') || mapelLower.includes('matematika') || mapelLower.includes('wirausaha') || mapelLower.includes('pkk');
+
+            if (data.jenisMapel === 'Kejuruan' || isSpecialUmum) {
+                if (isPPLG) {
+                    contextIndustri = mapelLower.includes('inggris') ? 'komunikasi profesional IT, membaca dokumentasi teknis, dan presentasi proyek digital' : 
+                                      mapelLower.includes('matematika') ? 'logika komputasi, algoritma dasar, dan pemecahan masalah (problem solving) pada rekayasa perangkat lunak' :
+                                      mapelLower.includes('wirausaha') || mapelLower.includes('pkk') ? 'membangun startup digital, technopreneurship, dan memasarkan produk perangkat lunak/gim' :
+                                      'industri teknologi, pengembangan perangkat lunak, atau startup digital';
+                } else {
+                    contextIndustri = mapelLower.includes('inggris') ? 'komunikasi bisnis internasional, korespondensi email profesional, dan layanan pelanggan global' :
+                                      mapelLower.includes('matematika') ? 'perhitungan bisnis, administrasi keuangan, dan analisis data statistik perkantoran' :
+                                      mapelLower.includes('wirausaha') || mapelLower.includes('pkk') ? 'pengembangan bisnis layanan, manajemen usaha perkantoran, dan inovasi layanan pelanggan' :
+                                      'dunia perkantoran modern, administrasi bisnis, atau layanan pelanggan profesional';
+                }
+            } else {
+                contextIndustri = isPPLG ? 'kehidupan bermasyarakat, pengembangan soft-skills, dan problem solving dasar bagi lulusan IT' : 'kehidupan bermasyarakat, etika komunikasi dasar, dan kolaborasi bagi lulusan administrasi bisnis';
+            }
+            
+            const themeColor = isPPLG ? '#1e3a8a' : '#7f1d1d';
+            
+            let dimList = data.dimensi.length > 0 ? data.dimensi.map(d => `<li><strong>${d}</strong>: Diintegrasikan melalui aktivitas pembelajaran.</li>`).join('') : '<li>Belum ditentukan</li>';
+            
+            const kolaborasiText = data.isKolaborasi ? `
+                <h3>Kemitraan Pembelajaran (Inkuiri Kolaboratif)</h3>
+                <p>Modul ini dirancang secara terintegrasi dengan mata pelajaran <strong>${data.mapelMitra}</strong> (Guru: ${data.guruMitra || '...'}).</p>
+                <p><strong>Isu/Produk Bersama:</strong> ${data.isuBersama}</p>
+                <p><strong>Peran Mapel Mitra:</strong> ${data.tpMitra}</p>
+            ` : '<h3>Kemitraan Pembelajaran</h3><p>Pembelajaran dilakukan secara mandiri dalam mata pelajaran ini dengan mengoptimalkan interaksi guru-siswa dan siswa-siswa (peer-learning).</p>';
+
+            const alurKegiatan = (pertemuanKe) => `
+                <h4>Pertemuan ${pertemuanKe} (${data.waktu})</h4>
+                <p><strong>A. Pendahuluan (15 Menit)</strong></p>
+                <ul>
+                    <li>Guru mengondisikan kelas dan membangun suasana <em>Joyful</em> (Menggembirakan) dengan sapaan hangat dan ice breaking singkat terkait ${data.topik}.</li>
+                    <li>Menyampaikan Tujuan Pembelajaran dan menanamkan prinsip <em>Mindful</em> (Berkesadaran) dengan mengajak siswa merefleksikan pentingnya materi ini bagi karir mereka di ${contextIndustri}.</li>
+                    <li>Apersepsi: Mengajukan pertanyaan pemantik.</li>
+                </ul>
+                <p><strong>B. Kegiatan Inti (Alur Pembelajaran Mendalam)</strong></p>
+                <ul>
+                    <li><strong>Tahap 1: Memahami (Understand)</strong> - Eksplorasi Konsep. Siswa difasilitasi untuk menggali informasi terkait ${data.topik} melalui sumber belajar digital atau paparan interaktif. Penekanan pada prinsip <em>Meaningful</em> dengan menautkan konsep ke contoh nyata.</li>
+                    <li><strong>Tahap 2: Mengaplikasi (Apply)</strong> - Aktivitas Praktikal (${data.model}). Siswa bekerja dalam kelompok (mengembangkan dimensi Kolaborasi) untuk menyelesaikan tantangan/LKPD terkait ${data.topik}. ${data.isKolaborasi ? 'Siswa juga harus mempertimbangkan aspek dari mapel mitra ('+data.mapelMitra+').' : ''}</li>
+                    <li><strong>Tahap 3: Merefleksi (Reflect)</strong> - Presentasi dan Umpan Balik. Siswa mempresentasikan hasil kerja. Guru memberikan penguatan dan siswa melakukan evaluasi diri terhadap proses belajarnya (Olah Pikir dan Olah Rasa).</li>
+                </ul>
+                <p><strong>C. Penutup (15 Menit)</strong></p>
+                <ul>
+                    <li>Guru dan siswa menyimpulkan pembelajaran.</li>
+                    <li>Siswa mengisi instrumen refleksi singkat (Mindful).</li>
+                    <li>Tindak lanjut dan informasi materi pertemuan berikutnya.</li>
+                </ul>
+            `;
+
+            // 1. Generate Modul Ajar
+            const modulAjarHTML = `
+                <div class="document-preview">
+                    <h1 style="color: ${themeColor}; text-align: center;">MODUL AJAR - PEMBELAJARAN MENDALAM</h1>
+                    <table style="width: 100%; border: none; margin-bottom: 2rem;">
+                        <tr>
+                            <td style="border: none; padding: 4px;"><strong>Nama Penyusun</strong></td><td style="border: none;">: ${data.guru}</td>
+                            <td style="border: none; padding: 4px;"><strong>Sekolah</strong></td><td style="border: none;">: SMK Al Hafidz Leuwiliang</td>
+                        </tr>
+                        <tr>
+                            <td style="border: none; padding: 4px;"><strong>Program Keahlian</strong></td><td style="border: none;">: ${data.prodi === 'PPLG' ? 'Pengembangan Perangkat Lunak & Gim' : 'Manajemen Perkantoran & Layanan Bisnis'}</td>
+                            <td style="border: none; padding: 4px;"><strong>Mata Pelajaran</strong></td><td style="border: none;">: ${data.mapel}</td>
+                        </tr>
+                        <tr>
+                            <td style="border: none; padding: 4px;"><strong>Fase/Kelas</strong></td><td style="border: none;">: ${data.kelas} / Semester ${data.semester}</td>
+                            <td style="border: none; padding: 4px;"><strong>Alokasi Waktu</strong></td><td style="border: none;">: ${data.pertemuan} Pertemuan (${data.waktu})</td>
+                        </tr>
+                    </table>
+
+                    <h2>I. INFORMASI UMUM & PEDAGOGIS</h2>
+                    <h3>1. Dimensi Profil Lulusan</h3>
+                    <ul>${dimList}</ul>
+                    
+                    <h3>2. Perwujudan 3 Prinsip Pembelajaran Mendalam</h3>
+                    <ul>
+                        <li><strong>Berkesadaran (Mindful):</strong> Siswa akan diajak menyadari tujuan belajarnya melalui refleksi awal dan akhir pembelajaran, memahami peran kompetensi ini dalam karir masa depan mereka.</li>
+                        <li><strong>Bermakna (Meaningful):</strong> Materi <em>${data.topik}</em> dikontekstualisasikan langsung dengan praktik di ${contextIndustri}, bukan sekadar hafalan teori.</li>
+                        <li><strong>Menggembirakan (Joyful):</strong> Pembelajaran menggunakan metode ${data.model} yang interaktif, menantang (hands-on & minds-on), dan kolaboratif.</li>
+                    </ul>
+
+                    <h3>3. Komponen Kerangka Pembelajaran</h3>
+                    <p><strong>Lingkungan Pembelajaran & Pemanfaatan Digital:</strong> Memanfaatkan ${data.sarpras.join(', ')} untuk menciptakan suasana simulasi kerja nyata.</p>
+                    <p><strong>Integrasi:</strong> Menggabungkan Olah Pikir (analisis kasus), Olah Hati (etika profesi), Olah Rasa (kreativitas solusi), dan Olah Raga (kesehatan kerja/ergonomi).</p>
+                    ${kolaborasiText}
+
+                    <hr style="margin: 2rem 0; border: 1px solid #eee;" />
+
+                    <h2>II. KOMPONEN INTI</h2>
+                    <h3>1. Capaian & Tujuan Pembelajaran</h3>
+                    <p><strong>Elemen CP:</strong> ${data.cp}</p>
+                    <p><strong>Tujuan Pembelajaran:</strong> ${data.tp}</p>
+                    
+                    <h3>2. Pemahaman Bermakna & Pertanyaan Pemantik</h3>
+                    <div class="callout">
+                        <p><strong>Pemahaman Bermakna:</strong> Menguasai ${data.topik} adalah fondasi penting untuk beradaptasi dan berinovasi di ${contextIndustri}.</p>
+                        <p><strong>Pertanyaan Pemantik:</strong> "Pernahkah kalian membayangkan bagaimana jika sistem terkait ${data.topik} ini gagal berfungsi di sebuah perusahaan besar? Apa dampaknya?"</p>
+                    </div>
+
+                    <h3>3. Langkah-langkah Pembelajaran</h3>
+                    ${alurKegiatan(1)}
+                    ${data.pertemuan === '2' ? alurKegiatan(2) : ''}
+
+                    <h2>III. LAMPIRAN RINGKAS</h2>
+                    <p><em>(Rincian LKPD, Materi, dan Asesmen terlampir pada dokumen terpisah)</em></p>
+                </div>
+            `;
+
+            // 2. Generate LKPD
+            const lkpdHTML = `
+                <div class="document-preview">
+                    <h1 style="color: ${themeColor}; text-align: center; font-size: 1.8rem; text-transform: uppercase;">Lembar Kerja Peserta Didik (LKPD)</h1>
+                    <div style="border: 2px solid ${themeColor}; padding: 1rem; border-radius: 8px; margin-bottom: 2rem;">
+                        <table style="width: 100%; border: none;">
+                            <tr>
+                                <td style="border: none; width: 120px;"><strong>Topik</strong></td><td style="border: none;">: ${data.topik}</td>
+                                <td style="border: none; width: 120px;"><strong>Nama Kelompok</strong></td><td style="border: none;">: .......................................</td>
+                            </tr>
+                            <tr>
+                                <td style="border: none;"><strong>Mata Pelajaran</strong></td><td style="border: none;">: ${data.mapel}</td>
+                                <td style="border: none;"><strong>Nama Anggota</strong></td><td style="border: none;">: 1. ....................................</td>
+                            </tr>
+                            <tr>
+                                <td style="border: none;"><strong>Kelas/Fase</strong></td><td style="border: none;">: ${data.kelas}</td>
+                                <td style="border: none;"></td><td style="border: none;">  2. ....................................</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div class="callout">
+                        <strong>Tujuan Aktivitas:</strong>
+                        <p>${data.tp}</p>
+                    </div>
+                    
+                    <h3>A. TAHAP 1: MEMAHAMI (Eksplorasi)</h3>
+                    <p>Diskusikan dengan teman kelompokmu mengenai konsep dasar ${data.topik}. Tuliskan pemahaman utama kalian di bawah ini:</p>
+                    <div class="lkpd-box">
+                        <br/><br/><br/>
+                    </div>
+
+                    <h3>B. TAHAP 2: MENGAPLIKASI (Tantangan Praktik)</h3>
+                    <p>Selesaikan studi kasus/proyek berikut (Metode: ${data.model}):</p>
+                    <p><em>Skenario: Anda adalah seorang profesional/pelajar yang bersiap untuk terjun di ${contextIndustri}. Anda diminta untuk menyelesaikan permasalahan terkait ${data.topik}. ${data.isKolaborasi ? '<br/><strong>Instruksi Khusus (Kolaborasi):</strong> Pastikan solusi Anda juga mengintegrasikan aspek dari mata pelajaran '+data.mapelMitra+'.' : ''}</em></p>
+                    
+                    <div style="background: #f8fafc; border-left: 4px solid #f59e0b; padding: 10px; margin-bottom: 15px;">
+                        <strong>Instruksi Kognitif (${data.levelHOTS === 'HOTS' ? 'Fokus Analisis & Evaluasi - HOTS' : data.levelHOTS === 'Campur' ? 'Pemahaman & Analisis' : 'Pemahaman & Penerapan Dasar - LOTS'}):</strong><br/>
+                        ${data.levelHOTS === 'HOTS' ? 
+                            'Analisislah permasalahan utama pada skenario di atas secara mendalam. Evaluasi minimal 2 alternatif solusi yang mungkin, lalu rancang/ciptakan solusi paling efektif yang bisa diimplementasikan.' : 
+                        data.levelHOTS === 'Campur' ? 
+                            '1. Jelaskan langkah-langkah dasar penyelesaian masalah ini.<br/>2. Analisislah apa dampaknya jika salah satu langkah penting diabaikan/gagal dilakukan.' : 
+                            'Tuliskan penyelesaian langsung dari permasalahan di atas berdasarkan materi yang telah dibaca. Terapkan rumus/konsep baku yang ada dengan tepat dan sistematis.'
+                        }
+                    </div>
+
+                    <p>Rancangan Solusi/Hasil Kerja:</p>
+                    <div class="lkpd-box" style="min-height: 200px;">
+                        <br/><br/><br/><br/><br/>
+                    </div>
+
+                    <h3>C. TAHAP 3: MEREFLEKSI (Self-Assessment)</h3>
+                    <p>Beri tanda centang pada pernyataan yang paling sesuai dengan pengalaman belajarmu hari ini (Prinsip <em>Mindful</em>):</p>
+                    <table style="width: 100%;">
+                        <tr><th>Pernyataan</th><th style="width:50px;">Ya</th><th style="width:50px;">Tidak</th></tr>
+                        <tr><td>Saya memahami peran kompetensi ini untuk masa depan saya.</td><td></td><td></td></tr>
+                        <tr><td>Saya berkontribusi aktif dalam penyelesaian tugas kelompok.</td><td></td><td></td></tr>
+                        <tr><td>Saya menemukan solusi kreatif untuk tantangan di Tahap 2.</td><td></td><td></td></tr>
+                    </table>
+                </div>
+            `;
+
+            // 3. Generate Materi
+            const materiHTML = `
+                <div class="document-preview">
+                    <h1 style="color: ${themeColor};">BAHAN BACAAN & MATERI AJAR</h1>
+                    <h2 style="margin-top: 0;">Topik: ${data.topik}</h2>
+                    
+                    <h3>1. Pengantar Konsep</h3>
+                    <p>Materi <strong>${data.topik}</strong> merupakan salah satu kompetensi fundamental dalam ${data.mapel}. Dalam paradigma industri saat ini, penguasaan materi ini tidak sekadar tentang menghafal definisi, melainkan memahami bagaimana menerapkannya untuk efisiensi dan inovasi.</p>
+                    
+                    <div class="callout">
+                        <strong>Konsep Kunci:</strong>
+                        <ul>
+                            <li>Definisi operasional dari ${data.topik}</li>
+                            <li>Komponen-komponen utama yang terlibat</li>
+                            <li>Prinsip kerja / Alur proses standar</li>
+                        </ul>
+                    </div>
+
+                    <h3>2. Kontekstualisasi Dunia Kerja (${data.prodi})</h3>
+                    <p>Di dunia nyata, khususnya pada ${contextIndustri}, konsep ini diimplementasikan dalam bentuk:</p>
+                    <ul>
+                        <li><strong>Contoh Kasus 1:</strong> Penerapan standar operasional dalam proyek berskala menengah.</li>
+                        <li><strong>Contoh Kasus 2:</strong> Penggunaan perangkat digital / <em>tools</em> spesifik untuk mempercepat proses terkait ${data.topik}.</li>
+                    </ul>
+
+                    <h3>3. Glosarium</h3>
+                    <ul>
+                        <li><strong>Mindful:</strong> Pendekatan belajar yang penuh kesadaran.</li>
+                        <li><strong>Joyful:</strong> Suasana belajar yang memicu antusiasme.</li>
+                        <li><strong>${data.topik.split(' ')[0] || 'Istilah 1'}:</strong> <em>(Guru dapat menambahkan definisi teknis di sini)</em></li>
+                    </ul>
+                </div>
+            `;
+
+            // 4. Generate Asesmen
+            const asesmenHTML = `
+                <div class="document-preview">
+                    <h1 style="color: ${themeColor};">INSTRUMEN ASESMEN</h1>
+                    
+                    <h3>A. Asesmen Formatif (Proses)</h3>
+                    <p>Observasi selama alur Memahami - Mengaplikasi - Merefleksi.</p>
+                    <table>
+                        <tr>
+                            <th>No</th>
+                            <th>Nama Siswa</th>
+                            <th>Aspek Pemahaman (Minds-on)</th>
+                            <th>Aspek Aplikasi/Keterampilan (Hands-on)</th>
+                            <th>Capaian Dimensi (${data.dimensi[0] || 'Kemandirian'})</th>
+                        </tr>
+                        <tr><td>1</td><td></td><td></td><td></td><td></td></tr>
+                        <tr><td>2</td><td></td><td></td><td></td><td></td></tr>
+                        <tr><td>3</td><td></td><td></td><td></td><td></td></tr>
+                    </table>
+
+                    <h3>B. Asesmen Sumatif (Kinerja / Produk)</h3>
+                    <p><strong>Tugas:</strong> Berdasarkan penyelesaian LKPD pada tahap "Mengaplikasi", siswa dinilai menggunakan rubrik berikut.</p>
+                    
+                    <h4>Rubrik Penilaian</h4>
+                    <table>
+                        <tr>
+                            <th>Kriteria</th>
+                            <th>Sangat Baik (4)</th>
+                            <th>Baik (3)</th>
+                            <th>Cukup (2)</th>
+                            <th>Perlu Bimbingan (1)</th>
+                        </tr>
+                        <tr>
+                            <td><strong>Ketepatan Solusi</strong></td>
+                            <td>Solusi sangat akurat dan melebihi ekspektasi standar ${contextIndustri}</td>
+                            <td>Solusi akurat dan sesuai instruksi</td>
+                            <td>Solusi sebagian besar akurat</td>
+                            <td>Solusi tidak relevan</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Tingkat Kognitif (${data.levelHOTS})</strong></td>
+                            <td>${data.levelHOTS === 'HOTS' ? 'Mampu menganalisis masalah kompleks dan merancang solusi inovatif (Mencipta)' : data.levelHOTS === 'Campur' ? 'Mampu menjelaskan konsep dan memberikan analisis yang logis (Menganalisis)' : 'Mampu menerapkan prosedur langkah demi langkah secara sempurna (Menerapkan)'}</td>
+                            <td>${data.levelHOTS === 'HOTS' ? 'Mampu mengevaluasi masalah dan memberi argumen/solusi cukup baik' : data.levelHOTS === 'Campur' ? 'Mampu memberi analisis dasar yang tepat sasaran' : 'Mampu menerapkan sebagian besar langkah/konsep dengan benar'}</td>
+                            <td>Menunjukkan pemahaman dasar saja, kurang tepat sasaran</td>
+                            <td>Belum menunjukkan pemahaman dan penerapan yang cukup</td>
+                        </tr>
+                        ${data.isKolaborasi ? `
+                        <tr>
+                            <td><strong>Integrasi Mapel Mitra</strong></td>
+                            <td>Sangat selaras dengan tujuan ${data.mapelMitra}</td>
+                            <td>Cukup mengintegrasikan ${data.mapelMitra}</td>
+                            <td>Minim integrasi</td>
+                            <td>Tidak ada integrasi</td>
+                        </tr>
+                        ` : ''}
+                    </table>
+                </div>
+            `;
+
+            // Returning all generated strings
+            return {
+                modulAjar: modulAjarHTML,
+                lkpd: lkpdHTML,
+                materi: materiHTML,
+                asesmen: asesmenHTML,
+                pptData: data // Pass raw data for PPT generator
+            };
+        };
+
+        const App = () => {
+            const [step, setStep] = useState(1);
+            const [formData, setFormData] = useState(INITIAL_STATE);
+            const [generatedContent, setGeneratedContent] = useState(null);
+            const [isGenerating, setIsGenerating] = useState(false);
+            const [activeTab, setActiveTab] = useState('modulAjar');
+
+            const theme = formData.prodi === 'PPLG' ? 'pplg' : 'mplb';
+            const themeClass = theme === 'pplg' ? 'bg-blue-900' : 'bg-red-900';
+            const themeText = theme === 'pplg' ? 'text-blue-900' : 'text-red-900';
+            const themeBorder = theme === 'pplg' ? 'border-blue-900' : 'border-red-900';
+
+            const handleInputChange = (e) => {
+                const { name, value, type, checked } = e.target;
+                
+                if (type === 'checkbox' && name === 'sarpras') {
+                    let updatedSarpras = [...formData.sarpras];
+                    if (checked) updatedSarpras.push(value);
+                    else updatedSarpras = updatedSarpras.filter(item => item !== value);
+                    setFormData({ ...formData, sarpras: updatedSarpras });
+                } 
+                else if (type === 'checkbox' && name === 'dimensi') {
+                    let updatedDimensi = [...formData.dimensi];
+                    if (checked) {
+                        if (updatedDimensi.length < 4) updatedDimensi.push(value);
+                        else alert('Maksimal pilih 4 Dimensi Profil Lulusan.');
+                    } else {
+                        updatedDimensi = updatedDimensi.filter(item => item !== value);
+                    }
+                    setFormData({ ...formData, dimensi: updatedDimensi });
+                }
+                else if (type === 'checkbox' && name === 'isKolaborasi') {
+                    setFormData({ ...formData, [name]: checked });
+                }
+                else {
+                    setFormData({ ...formData, [name]: value });
+                }
+            };
+
+            const generateAutomatedTP = (e) => {
+                e.preventDefault();
+                if(!formData.topik) {
+                    alert('Harap isi Topik Pembelajaran terlebih dahulu.');
+                    return;
+                }
+                const autoTP = `Melalui pendekatan pembelajaran mendalam dan metode ${formData.model}, peserta didik mampu menganalisis, merancang, dan menerapkan konsep ${formData.topik} dengan menunjukkan sikap ${formData.dimensi[0] || 'kritis'} dan ${formData.dimensi[1] || 'mandiri'} sesuai standar industri.`;
+                setFormData({...formData, tp: autoTP});
+            };
+
+            const handleGenerate = () => {
+                setIsGenerating(true);
+                // Simulate AI processing time
+                setTimeout(() => {
+                    const content = generateContent(formData);
+                    setGeneratedContent(content);
+                    setIsGenerating(false);
+                    setStep(5); // Move to result page
+                }, 1500);
+            };
+
+            const downloadPDF = (elementId, filename) => {
+                const element = document.getElementById(elementId);
+                const opt = {
+                    margin:       10,
+                    filename:     `${filename}.pdf`,
+                    image:        { type: 'jpeg', quality: 0.98 },
+                    html2canvas:  { scale: 2 },
+                    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+                html2pdf().set(opt).from(element).save();
+            };
+
+            const downloadPPT = () => {
+                // Initialize PptxGenJS
+                let pptx = new PptxGenJS();
+                let slide1 = pptx.addSlide();
+                
+                // Styling base based on theme
+                let colorBase = formData.prodi === 'PPLG' ? '1E3A8A' : '7F1D1D';
+                let colorAccent = 'EAB308';
+
+                // Slide 1: Cover
+                slide1.background = { color: colorBase };
+                slide1.addText(`Materi Ajar: ${formData.topik}`, { x:1, y:2, w:'80%', h:1, fontSize: 36, color: 'FFFFFF', bold:true, align: 'center' });
+                slide1.addText(formData.mapel, { x:1, y:3, w:'80%', h:1, fontSize: 24, color: colorAccent, align: 'center' });
+                slide1.addText(`Oleh: ${formData.guru}`, { x:1, y:4, w:'80%', h:1, fontSize: 18, color: 'FFFFFF', align: 'center' });
+
+                // Slide 2: Tujuan
+                let slide2 = pptx.addSlide();
+                slide2.addText('Tujuan Pembelajaran', { x:0.5, y:0.5, w:'90%', h:1, fontSize: 28, color: colorBase, bold:true, border:[0,0,{pt:2,color:colorBase},0] });
+                slide2.addText(formData.tp, { x:0.5, y:1.8, w:'90%', h:3, fontSize: 18, valign:'top', bullet:true });
+
+                // Slide 3: Apersepsi (Prinsip Mindful)
+                let slide3 = pptx.addSlide();
+                slide3.addText('Mengapa Ini Penting? (Refleksi Awal)', { x:0.5, y:0.5, w:'90%', h:1, fontSize: 28, color: colorBase, bold:true, border:[0,0,{pt:2,color:colorBase},0] });
+                slide3.addText(`Sebagai calon profesional di bidang ${formData.prodi}, penguasaan tentang ${formData.topik} sangat krusial karena...`, { x:0.5, y:1.8, w:'90%', h:3, fontSize: 18, valign:'top' });
+
+                // Slide 4: Konsep
+                let slide4 = pptx.addSlide();
+                slide4.addText('Konsep Utama', { x:0.5, y:0.5, w:'90%', h:1, fontSize: 28, color: colorBase, bold:true, border:[0,0,{pt:2,color:colorBase},0] });
+                slide4.addText('1. Definisi \n2. Alur Kerja \n3. Contoh Penerapan', { x:0.5, y:1.8, w:'90%', h:3, fontSize: 20, valign:'top', bullet:true });
+
+                // Slide 5: Aktivitas
+                let slide5 = pptx.addSlide();
+                slide5.addText('Aktivitas Kelas (Joyful & Meaningful)', { x:0.5, y:0.5, w:'90%', h:1, fontSize: 28, color: colorBase, bold:true, border:[0,0,{pt:2,color:colorBase},0] });
+                slide5.addText(`Metode: ${formData.model}\n\nSilakan buka LKPD Anda dan mulai berkolaborasi dengan kelompok!`, { x:0.5, y:1.8, w:'90%', h:3, fontSize: 22, valign:'top', align:'center' });
+
+                pptx.writeFile({ fileName: `PPT_${formData.topik.replace(/\s+/g, '_')}.pptx` });
+            };
+
+            const copyToClipboard = (elementId) => {
+                const element = document.getElementById(elementId);
+                const text = element.innerText || element.textContent;
+                navigator.clipboard.writeText(text).then(() => {
+                    alert("Konten berhasil disalin ke clipboard!");
+                }).catch(err => {
+                    alert("Gagal menyalin. Silakan seleksi teks dan salin manual (Ctrl+C).");
+                });
+            };
+
+            const renderStep1 = () => (
+                <div className="space-y-4 fade-in">
+                    <h2 className="text-xl font-bold mb-4">Langkah 1: Identitas & Pengaturan Dasar</h2>
+                    
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Nama Guru Penyusun</label>
+                        <input type="text" name="guru" value={formData.guru} onChange={handleInputChange} className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500" placeholder="Misal: Budi Santoso, S.Kom." />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Program Keahlian</label>
+                            <select name="prodi" value={formData.prodi} onChange={handleInputChange} className="w-full p-2 border rounded-md">
+                                {PROGRAM_KEAHLIAN.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Kategori Mata Pelajaran</label>
+                            <select name="jenisMapel" value={formData.jenisMapel} onChange={handleInputChange} className="w-full p-2 border rounded-md">
+                                <option value="Umum">Umum (Normatif / Adaptif)</option>
+                                <option value="Kejuruan">Kejuruan (Produktif)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Mata Pelajaran</label>
+                            <input type="text" name="mapel" value={formData.mapel} onChange={handleInputChange} className="w-full p-2 border rounded-md" placeholder={formData.jenisMapel === 'Kejuruan' && formData.prodi === 'PPLG' ? "Contoh: Pemrograman Web" : formData.jenisMapel === 'Kejuruan' ? "Contoh: Otomatisasi Perkantoran" : "Contoh: Bahasa Indonesia, Pend. Agama"} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Fase / Kelas</label>
+                            <select name="kelas" value={formData.kelas} onChange={handleInputChange} className="w-full p-2 border rounded-md">
+                                <option value="X (Fase E)">X (Fase E)</option>
+                                <option value="XI (Fase F)">XI (Fase F)</option>
+                                <option value="XII (Fase F)">XII (Fase F)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
+                            <select name="semester" value={formData.semester} onChange={handleInputChange} className="w-full p-2 border rounded-md">
+                                <option value="Ganjil">Ganjil</option>
+                                <option value="Genap">Genap</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Jumlah Pertemuan</label>
+                            <select name="pertemuan" value={formData.pertemuan} onChange={handleInputChange} className="w-full p-2 border rounded-md">
+                                <option value="1">1 Pertemuan</option>
+                                <option value="2">2 Pertemuan</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Alokasi Waktu</label>
+                            <input type="text" name="waktu" value={formData.waktu} onChange={handleInputChange} className="w-full p-2 border rounded-md" placeholder="Misal: 2 x 45 Menit" />
+                        </div>
+                    </div>
+                </div>
+            );
+
+            const renderStep2 = () => (
+                <div className="space-y-4 fade-in">
+                    <h2 className="text-xl font-bold mb-4">Langkah 2: Capaian & Tujuan Pembelajaran</h2>
+                    
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Elemen Capaian Pembelajaran (CP)</label>
+                        <textarea name="cp" value={formData.cp} onChange={handleInputChange} rows="2" className="w-full p-2 border rounded-md" placeholder="Kutip kalimat CP dari dokumen resmi..."></textarea>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Materi Pokok / Topik Pembelajaran</label>
+                            <input type="text" name="topik" value={formData.topik} onChange={handleInputChange} className="w-full p-2 border rounded-md" placeholder="Contoh: Algoritma Percabangan" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Tingkat Berpikir (Kognitif)</label>
+                            <select name="levelHOTS" value={formData.levelHOTS} onChange={handleInputChange} className="w-full p-2 border rounded-md">
+                                <option value="HOTS">Dominan HOTS (Menganalisis, Mengevaluasi, Mencipta)</option>
+                                <option value="Campur">Campuran (LOTS & HOTS)</option>
+                                <option value="Tidak">Dominan LOTS (Mengingat, Memahami, Menerapkan)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between items-end">
+                            <span>Tujuan Pembelajaran (TP)</span>
+                            <button onClick={generateAutomatedTP} className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-800 py-1 px-2 rounded flex items-center gap-1">
+                                <Icon name="wand-2" size={12} /> Bantu susun otomatis
+                            </button>
+                        </label>
+                        <textarea name="tp" value={formData.tp} onChange={handleInputChange} rows="3" className="w-full p-2 border rounded-md" placeholder="Peserta didik mampu..."></textarea>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Sarana & Prasarana Tersedia</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {SARPRAS_LIST[formData.prodi].map((item, idx) => (
+                                <label key={idx} className="flex items-center space-x-2 text-sm">
+                                    <input type="checkbox" name="sarpras" value={item} checked={formData.sarpras.includes(item)} onChange={handleInputChange} className="rounded text-blue-600 focus:ring-blue-500" />
+                                    <span>{item}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+
+            const renderStep3 = () => (
+                <div className="space-y-5 fade-in">
+                    <h2 className="text-xl font-bold mb-4">Langkah 3: Pendekatan Pembelajaran Mendalam</h2>
+                    
+                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-4">
+                        <p className="text-sm text-blue-800 flex gap-2">
+                            <Icon name="info" size={20} className="shrink-0"/>
+                            Aplikasi akan memastikan prinsip <strong>Mindful, Meaningful, dan Joyful</strong> terwujud secara otomatis dalam langkah-langkah modul ajar dan LKPD berdasarkan input Anda di sini.
+                        </p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Dimensi Profil Lulusan (Pilih maks. 4)</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {DIMENSI_LULUSAN.map((dim, idx) => (
+                                <label key={idx} className="flex items-center space-x-2 text-sm bg-gray-50 p-2 rounded border">
+                                    <input type="checkbox" name="dimensi" value={dim} checked={formData.dimensi.includes(dim)} onChange={handleInputChange} className="rounded text-blue-600" />
+                                    <span>{dim}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Model/Metode Pembelajaran Utama</label>
+                        <select name="model" value={formData.model} onChange={handleInputChange} className="w-full p-2 border rounded-md">
+                            {MODEL_PEMBELAJARAN.map((m, idx) => <option key={idx} value={m}>{m}</option>)}
+                        </select>
+                    </div>
+
+                    <div className="border-t pt-4">
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                            <div className="relative">
+                                <input type="checkbox" name="isKolaborasi" checked={formData.isKolaborasi} onChange={handleInputChange} className="sr-only" />
+                                <div className={`block w-14 h-8 rounded-full transition-colors ${formData.isKolaborasi ? (theme === 'pplg' ? 'bg-blue-600' : 'bg-red-600') : 'bg-gray-300'}`}></div>
+                                <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${formData.isKolaborasi ? 'transform translate-x-6' : ''}`}></div>
+                            </div>
+                            <span className="font-semibold text-gray-800">Aktifkan Inkuiri Kolaboratif (Lintas Mapel)</span>
+                        </label>
+                        <p className="text-xs text-gray-500 mt-1 ml-17">Sesuai Permendikdasmen No. 13 Tahun 2025 tentang Kemitraan Pembelajaran.</p>
+                    </div>
+
+                    {formData.isKolaborasi && (
+                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3 mt-3 animate-fade-in-down">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Mata Pelajaran Mitra</label>
+                                    <input type="text" name="mapelMitra" value={formData.mapelMitra} onChange={handleInputChange} className="w-full p-2 border rounded-md text-sm" placeholder="Contoh: Bahasa Inggris / Matematika" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Guru Mitra (Opsional)</label>
+                                    <input type="text" name="guruMitra" value={formData.guruMitra} onChange={handleInputChange} className="w-full p-2 border rounded-md text-sm" placeholder="Nama guru mitra" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Isu/Produk Bersama (Titik Temu)</label>
+                                <input type="text" name="isuBersama" value={formData.isuBersama} onChange={handleInputChange} className="w-full p-2 border rounded-md text-sm" placeholder="Contoh: Membuat proposal bisnis digital berbahasa Inggris" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Tujuan Pembelajaran Mapel Mitra (Singkat)</label>
+                                <input type="text" name="tpMitra" value={formData.tpMitra} onChange={handleInputChange} className="w-full p-2 border rounded-md text-sm" placeholder="Contoh: Siswa mampu menyusun teks prosedur bahasa Inggris." />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+
+            const renderStep4 = () => (
+                <div className="space-y-4 fade-in">
+                    <h2 className="text-xl font-bold mb-4">Langkah 4: Tinjauan & Generate</h2>
+                    
+                    <div className="bg-gray-50 p-5 rounded-lg border border-gray-200">
+                        <h3 className="font-bold text-lg border-b pb-2 mb-3">Ringkasan Konfigurasi</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-y-2 text-sm">
+                            <p><span className="text-gray-500">Guru:</span> {formData.guru || '-'}</p>
+                            <p><span className="text-gray-500">Program:</span> {formData.prodi}</p>
+                            <p><span className="text-gray-500">Kategori:</span> {formData.jenisMapel}</p>
+                            <p><span className="text-gray-500">Mapel:</span> {formData.mapel || '-'}</p>
+                            <p><span className="text-gray-500">Kelas/Smt:</span> {formData.kelas} / {formData.semester}</p>
+                            <p><span className="text-gray-500">Topik:</span> {formData.topik || '-'}</p>
+                            <p><span className="text-gray-500">Tingkat Soal:</span> {formData.levelHOTS}</p>
+                            <p><span className="text-gray-500">Metode:</span> {formData.model}</p>
+                            <p className="col-span-2"><span className="text-gray-500">Dimensi Lulusan:</span> {formData.dimensi.length > 0 ? formData.dimensi.join(', ') : 'Belum dipilih'}</p>
+                            {formData.isKolaborasi && (
+                                <p className="col-span-2 text-green-700 bg-green-50 p-2 rounded mt-2">
+                                    <Icon name="link" size={14} className="inline mr-1" />
+                                    Terintegrasi dengan <strong>{formData.mapelMitra || '...'}</strong> (Isu: {formData.isuBersama || '...'})
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex justify-center pt-4">
+                        <button 
+                            onClick={handleGenerate}
+                            disabled={isGenerating || !formData.guru || !formData.mapel || !formData.topik}
+                            className={`flex items-center gap-2 px-8 py-4 rounded-xl text-white font-bold text-lg shadow-lg transform transition hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed ${themeClass}`}
+                        >
+                            {isGenerating ? (
+                                <><Icon name="loader-2" className="animate-spin" /> Menyusun Dokumen AI...</>
+                            ) : (
+                                <><Icon name="sparkles" /> Buat Perangkat Ajar Lengkap</>
+                            )}
+                        </button>
+                    </div>
+                    {(!formData.guru || !formData.mapel || !formData.topik) && (
+                        <p className="text-center text-red-500 text-sm mt-2">Harap lengkapi Nama Guru, Mapel, dan Topik terlebih dahulu.</p>
+                    )}
+                </div>
+            );
+
+            const renderResult = () => {
+                if (!generatedContent) return null;
+
+                const tabs = [
+                    { id: 'modulAjar', label: 'Modul Ajar', icon: 'file-text' },
+                    { id: 'lkpd', label: 'LKPD', icon: 'edit-3' },
+                    { id: 'materi', label: 'Materi Ajar', icon: 'book-open' },
+                    { id: 'asesmen', label: 'Asesmen', icon: 'check-square' },
+                    { id: 'ppt', label: 'Presentasi', icon: 'monitor' }
+                ];
+
+                return (
+                    <div className="w-full max-w-6xl mx-auto p-4 fade-in">
+                        <div className="flex justify-between items-center mb-6">
+                            <div>
+                                <h1 className={`text-2xl font-bold ${themeText}`}>Hasil Perangkat Ajar Pembelajaran Mendalam</h1>
+                                <p className="text-gray-600">Topik: {formData.topik}</p>
+                            </div>
+                            <button onClick={() => setStep(1)} className="px-4 py-2 border rounded-md hover:bg-gray-100 flex items-center gap-2 text-sm">
+                                <Icon name="home" size={16} /> Kembali ke Form
+                            </button>
+                        </div>
+
+                        {/* Tabs Navigation */}
+                        <div className="flex overflow-x-auto border-b border-gray-200 mb-6 bg-white rounded-t-lg shadow-sm px-2 pt-2">
+                            {tabs.map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`px-4 py-3 flex items-center gap-2 font-medium text-sm whitespace-nowrap border-b-2 transition-colors ${activeTab === tab.id ? `${themeBorder} ${themeText}` : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                                >
+                                    <Icon name={tab.icon} size={18} />
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Tab Content Area */}
+                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                            {/* Editor View */}
+                            <div className="lg:col-span-3">
+                                {activeTab !== 'ppt' ? (
+                                    <Card className="p-0 overflow-hidden">
+                                        <div className="bg-gray-50 border-b p-3 flex justify-between items-center text-sm text-gray-600">
+                                            <span className="flex items-center gap-2"><Icon name="edit" size={14}/> Pratinjau Dokumen (Bisa diedit langsung)</span>
+                                        </div>
+                                        <div 
+                                            id={`doc-${activeTab}`}
+                                            className="content-editable-area" 
+                                            contentEditable={true}
+                                            suppressContentEditableWarning={true}
+                                            dangerouslySetInnerHTML={{ __html: generatedContent[activeTab] }}
+                                        />
+                                    </Card>
+                                ) : (
+                                    <Card className="flex flex-col items-center justify-center min-h-[400px] text-center bg-gray-50">
+                                        <Icon name="monitor" size={64} className={`${themeText} mb-4 opacity-80`} />
+                                        <h3 className="text-xl font-bold mb-2">Bahan Presentasi (PPT)</h3>
+                                        <p className="text-gray-600 max-w-md mb-6">Sistem telah menyusun rancangan slide berisikan Tujuan, Apersepsi, Konsep, dan Aktivitas sesuai alur Pembelajaran Mendalam.</p>
+                                        <button onClick={downloadPPT} className={`px-6 py-3 rounded-lg text-white font-semibold flex items-center gap-2 shadow hover:opacity-90 ${themeClass}`}>
+                                            <Icon name="download" /> Unduh sebagai .PPTX
+                                        </button>
+                                    </Card>
+                                )}
+                            </div>
+
+                            {/* Sidebar Actions */}
+                            <div className="space-y-4">
+                                <Card>
+                                    <h3 className="font-semibold text-gray-800 mb-4 border-b pb-2">Aksi Dokumen</h3>
+                                    
+                                    {activeTab !== 'ppt' && (
+                                        <>
+                                            <button onClick={() => downloadPDF(`doc-${activeTab}`, `${tab.label}_${formData.topik}`)} className={`w-full mb-3 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-white shadow hover:opacity-90 ${themeClass}`}>
+                                                <Icon name="download" size={18} /> Unduh PDF
+                                            </button>
+                                            
+                                            <button onClick={() => copyToClipboard(`doc-${activeTab}`)} className="w-full mb-3 flex items-center justify-center gap-2 px-4 py-2 border rounded-md hover:bg-gray-50 text-gray-700">
+                                                <Icon name="copy" size={18} /> Salin Teks
+                                            </button>
+                                        </>
+                                    )}
+
+                                    {activeTab === 'ppt' && (
+                                        <button onClick={downloadPPT} className={`w-full mb-3 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-white shadow hover:opacity-90 ${themeClass}`}>
+                                            <Icon name="download" size={18} /> Unduh PPTX
+                                        </button>
+                                    )}
+
+                                    <div className="mt-6 pt-4 border-t">
+                                        <p className="text-xs text-gray-500 mb-2">Hasil kurang pas?</p>
+                                        <button onClick={() => {
+                                            alert("Simulasi: Mengontak ulang AI (Engine)... Di versi ini, edit manual di kanvas disarankan untuk penyesuaian detail.");
+                                        }} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 rounded-md hover:bg-purple-100 text-sm">
+                                            <Icon name="refresh-cw" size={14} /> Buat Ulang Bagian Ini
+                                        </button>
+                                    </div>
+                                </Card>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div className={`min-h-screen pb-12 transition-colors duration-500 ${step === 5 ? 'bg-gray-100' : 'bg-gradient-to-br from-gray-50 to-gray-200'}`}>
+                    {/* Header */}
+                    <header className={`text-white p-4 shadow-md ${themeClass}`}>
+                        <div className="max-w-6xl mx-auto flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center p-2 border-2 border-white/30 backdrop-blur-sm shadow">
+                                    <Icon name="graduation-cap" size={32} className="text-white" />
+                                </div>
+                                <div>
+                                    <h1 className="font-bold text-xl leading-tight">SMK Al Hafidz Leuwiliang</h1>
+                                    <p className="text-sm opacity-90">Generator Perangkat Ajar - Pembelajaran Mendalam</p>
+                                </div>
+                            </div>
+                            <div className="hidden md:block">
+                                <span className={`text-xs font-semibold px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm`}>
+                                    Permendikdasmen No.13/2025 Ready
+                                </span>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Main Content Area */}
+                    {step < 5 ? (
+                        <main className="max-w-3xl mx-auto mt-8 px-4">
+                            <div className="mb-6 flex justify-between items-center px-2">
+                                <h2 className="text-gray-500 font-medium">Langkah {step} dari 4</h2>
+                                <div className="flex gap-1">
+                                    {[1,2,3,4].map(i => (
+                                        <div key={i} className={`h-2 w-12 rounded-full transition-colors ${i === step ? themeClass : (i < step ? 'bg-green-400' : 'bg-gray-300')}`}></div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <Card className="relative overflow-hidden border-t-4" style={{borderTopColor: theme === 'pplg' ? '#eab308' : '#f59e0b'}}>
+                                {step === 1 && renderStep1()}
+                                {step === 2 && renderStep2()}
+                                {step === 3 && renderStep3()}
+                                {step === 4 && renderStep4()}
+
+                                {/* Navigation Buttons */}
+                                <div className="mt-8 pt-4 border-t flex justify-between">
+                                    <button 
+                                        onClick={() => setStep(s => Math.max(1, s - 1))}
+                                        className={`px-4 py-2 border rounded text-gray-600 hover:bg-gray-50 flex items-center gap-2 ${step === 1 ? 'invisible' : ''}`}
+                                    >
+                                        <Icon name="arrow-left" size={16} /> Kembali
+                                    </button>
+                                    
+                                    {step < 4 && (
+                                        <button 
+                                            onClick={() => setStep(s => Math.min(4, s + 1))}
+                                            className={`px-6 py-2 rounded text-white flex items-center gap-2 ${themeClass} hover:opacity-90`}
+                                        >
+                                            Lanjut <Icon name="arrow-right" size={16} />
+                                        </button>
+                                    )}
+                                </div>
+                            </Card>
+                        </main>
+                    ) : (
+                        renderResult()
+                    )}
+
+                    <style dangerouslySetInnerHTML={{__html: `
+                        .fade-in { animation: fadeIn 0.4s ease-in-out; }
+                        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+                    `}} />
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
